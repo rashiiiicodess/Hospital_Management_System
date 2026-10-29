@@ -11,10 +11,11 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "migrate": "node-pg-migrate",
-    "migrate:up": "node-pg-migrate up",
-    "migrate:down": "node-pg-migrate down",
-    "migrate:create": "node-pg-migrate create",
-    "test": "jest"
+    "migrate:up": "node-pg-migrate --migrations-dir src/db/migrations up",
+    "migrate:down": "node-pg-migrate --migrations-dir src/db/migrations down",
+    "migrate:create": "node-pg-migrate --migrations-dir src/db/migrations create",
+    "test": "jest",
+    "seed": "node src/db/seeds/seed.js"
   },
   "keywords": [],
   "author": "",
