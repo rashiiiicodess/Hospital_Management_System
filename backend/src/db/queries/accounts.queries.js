@@ -15,7 +15,7 @@ export async function findAccountByEmail(client, email) {
 
 export async function findAccountById(client, id) {
   const query = `
-    SELECT id, email, role, status, created_at
+    SELECT id, email, password_hash, role, status, created_at
     FROM accounts
     WHERE id = $1;
   `;
@@ -41,5 +41,55 @@ export async function updatePassword(client, accountId, passwordHash) {
     RETURNING id, email, role, status;
   `;
   const result = await client.query(query, [passwordHash, accountId]);
+  return result.rows[0] || null;
+}
+export async function listAccounts(client, { role, status, search }) {
+  let query = `
+    SELECT id, email, role, status, created_at
+    FROM accounts
+    WHERE 1=1
+  `;
+  const params = [];
+  let paramIdx = 1;
+
+  if (role) {
+    query += ` AND role = $${paramIdx++}`;
+    params.push(role);
+  }
+
+  if (status) {
+    query += ` AND status = $${paramIdx++}`;
+    params.push(status);
+  }
+
+  if (search) {
+    query += ` AND email ILIKE $${paramIdx++}`;
+    params.push(`%${search}%`);
+  }
+
+  query += ` ORDER BY created_at DESC;`;
+
+  const result = await client.query(query, params);
+  return result.rows;
+}
+
+export async function countActiveAdmins(client) {
+  const query = `
+    SELECT COUNT(*)::int as count
+    FROM accounts
+    WHERE role = 'admin' AND status = 'active';
+  `;
+  const result = await client.query(query);
+  return result.rows[0].count;
+}
+
+export async function updateAccountStatus(client, accountId, newStatus) {
+  const query = `
+    UPDATE accounts
+    SET status = $2
+    WHERE id = $1
+    RETURNING id, email, role, status;
+  `;
+  const result = await client.query(query, [accountId, newStatus]);
   return result.rows[0] || null;
 }

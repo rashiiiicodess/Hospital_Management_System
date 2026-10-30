@@ -16,3 +16,12 @@ export const createStaffAccountSchema = z.object({
     role: z.enum(['receptionist', 'admin']),
   }),
 });
+
+export const updateAccountStatusSchema = z.object({
+  params: z.object({
+    id: z.coerce.number().int().positive(),
+  }),
+  body: z.object({
+    status: z.enum(['active', 'deactivated']),
+  }),
+});

@@ -6,6 +6,7 @@ import * as departmentsQueries from '../db/queries/departments.queries.js';
 import { generateRandomToken, hashToken } from './tokens.service.js';
 import { ConflictError, NotFoundError } from '../errors/AppError.js';
 import { handleDbError } from '../lib/dbErrors.js';
+import * as appointmentsQueries from '../db/queries/appointments.queries.js';
 
 export async function createDoctorWithInvite({ email, firstName, lastName, departmentId, specialization }) {
   return withTransaction(async (client) => {
@@ -98,5 +99,42 @@ export async function createStaffWithInvite({ email, role }) {
     } catch (err) {
       handleDbError(err);
     }
+  });
+}
+
+export async function listAllAccounts(filters) {
+  return accountsQueries.listAccounts(pool, filters);
+}
+export async function setAccountStatus(adminUser, targetAccountId, newStatus) {
+  return withTransaction(async (client) => {
+    const target = await accountsQueries.findAccountById(client, targetAccountId);
+    if (!target) {
+      throw new NotFoundError('Account not found');
+    }
+    // 1. The Last-Admin Protection Rule
+    if (target.role === 'admin' && newStatus === 'deactivated') {
+      const activeAdminCount = await accountsQueries.countActiveAdmins(client);
+      if (activeAdminCount <= 1) {
+        throw new ConflictError(
+          'Cannot deactivate the last active administrator account',
+          'LAST_ADMIN'
+        );
+      }
+    }
+    // 2. Update status
+    const updated = await accountsQueries.updateAccountStatus(client, targetAccountId, newStatus);
+    // 3. If a doctor is deactivated, automatically move all their future booked appointments to 'needs_reschedule'
+    let affectedAppointments = [];
+    if (target.role === 'doctor' && newStatus === 'deactivated') {
+      affectedAppointments = await appointmentsQueries.flagDoctorFutureAppointmentsAsNeedsReschedule(
+        client,
+        targetAccountId
+      );
+    }
+    return {
+      account: updated,
+      affectedAppointmentsCount: affectedAppointments.length,
+      affectedAppointments,
+    };
   });
 }

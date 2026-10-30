@@ -198,11 +198,11 @@
 | REC-1 | Patient profile with blood group, allergies, chronic conditions, emergency contact | P0 | Medical fields editable by treating doctors only |
 | REC-2 | One visit record per completed appointment: complaint, diagnosis, notes | P0 | Linked to the appointment, doctor, and patient |
 | REC-3 | Vitals: BP, pulse, temperature, weight, height, SpO2 | P0 | Impossible values rejected; unusual values warned |
-| REC-4 | Doctor can view a patient's full medical history (profile, past visits, vitals, prescriptions) only from 20 minutes before the appointment starts until its slot ends. The window applies to booked and completed appointments, and the 20 minutes is a config value | P0 | Window opens at start minus 20 minutes and closes at slot end (server clock, hospital timezone); outside it the API returns 403 and the UI shows when access opens; history loads automatically once the window opens; one reusable check with boundary tests (19, 20, and 21 minutes before; at and after slot end) |
+| REC-4 | Doctor can view a patient's full medical history (profile, past visits, vitals, prescriptions) anytime without appointment time restrictions | P0 | Verified doctors can view full medical history for any patient at any time for clinical review and continuity of care; every view is recorded in the audit log |
 | REC-5 | Patients can view all of their own records and prescriptions, read-only | P0 | Cannot view anyone else's |
 | REC-6 | Receptionists and admins have no access to clinical data | P0 | Endpoints return 403 |
 | REC-7 | Finalized records change only through amendments with a trail | P2 | Original content is never overwritten |
-| REC-8 | After the window closes, the doctor can still finish and finalize the visit record and prescription for that appointment, but cannot read the patient's history. Today's list shows only name and time before the window opens | P0 | A draft stays editable until finalized; history endpoints return 403 after slot end; no clinical data appears in the appointment list |
+| REC-8 | A draft visit record stays editable by the attending doctor until finalized. Doctors retain full read access to the patient's medical history anytime | P0 | A draft stays editable until finalized; history endpoints are accessible anytime to doctors |
 
 ### 7.6 Prescriptions
 
@@ -241,7 +241,7 @@
 
 1. **Status flow.** `booked` → `completed`, `cancelled`, `no_show`, or `needs_reschedule`. `needs_reschedule` → `booked` (rescheduled) or `cancelled`. `completed`, `cancelled`, and `no_show` are terminal. A separate `confirmed` status is not used.
 2. A `needs_reschedule` appointment keeps holding its original slot until resolved.
-3. A doctor can read a patient's history only from 20 minutes before the appointment starts until its slot ends. Cancelled, needs_reschedule, and no_show appointments grant no access.
+3. Doctors can view a patient's medical history at any time for clinical reference and continuity of care. Editing/recording vitals and visit notes for an appointment is limited to the attending doctor.
 4. Cancellation is allowed only before the start time; after the slot has started, only completed or no_show applies. When a doctor cancels their own appointment, it moves to `needs_reschedule` with a required reason; the receptionist then reschedules it or cancels it for good.
 5. No hard deletes of clinical or appointment data; use soft deletion or deactivation.
 6. A doctor changing department keeps past appointments as they were.
@@ -387,5 +387,5 @@ No designs exist yet. Planned deliverables:
 | D19 | A separate `confirmed` status is dropped from the lifecycle | Added no value once cancellation rules were simplified |
 | D20 | Email delivery uses an outbox with retries, and reminders are idempotent | Reliability and testability |
 | D21 | Doctors can cancel their own appointments with a reason and update their status; the cancelled appointment goes to the receptionist queue, and only receptionists reschedule | Doctors know when they cannot attend; keeping rescheduling with receptionists reuses the existing `needs_reschedule` flow |
-| D22 | A doctor can read a patient's history only from 20 minutes before the appointment until its slot ends; earlier visits are fetched for review inside that window | Limits exposure of sensitive data to the time care is actually being given |
+| D22 | Doctors can read patient medical records anytime without time window restrictions | Enables doctors to review patient history, prepare for consultations, and review past visits anytime |
 | D23 | Use plain JavaScript (ES modules) instead of TypeScript, with separate backend and frontend folders instead of a monorepo with a shared package | Faster start and simpler tooling for a solo 8-week build; Zod runtime validation and the test suite carry the correctness work, and TypeScript would not catch mistakes inside SQL strings anyway |

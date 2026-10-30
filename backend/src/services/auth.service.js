@@ -2,7 +2,7 @@ import { pool, withTransaction } from '../db/pool.js';
 import * as accountsQueries from '../db/queries/accounts.queries.js';
 import * as invitesQueries from '../db/queries/invites.queries.js';
 import { hashPassword, comparePassword } from '../lib/password.js';
-import { generateAccessToken, hashToken } from './tokens.service.js';
+import { generateAccessToken, generateRandomToken, hashToken } from './tokens.service.js';
 import { UnauthorizedError, ConflictError, NotFoundError, BadRequestError } from '../errors/AppError.js';
 import { handleDbError } from '../lib/dbErrors.js';
 
@@ -131,4 +131,79 @@ export async function getMe(accountId) {
     status: account.status,
     profile,
   };
+}
+
+export async function changePassword(accountId, { currentPassword, newPassword }) {
+  const account = await accountsQueries.findAccountById(pool, accountId);
+  if (!account) {
+    throw new NotFoundError('Account not found');
+  }
+
+  const isMatch = await comparePassword(currentPassword, account.password_hash);
+  if (!isMatch) {
+    throw new UnauthorizedError('Current password is incorrect');
+  }
+
+  const newHash = await hashPassword(newPassword);
+  await accountsQueries.updatePassword(pool, accountId, newHash);
+
+  return { message: 'Password changed successfully' };
+}
+
+export async function forgotPassword({ email }) {
+  const account = await accountsQueries.findAccountByEmail(pool, email);
+
+  // Return standard response even if account doesn't exist (prevents email enumeration)
+  if (!account || account.status !== 'active') {
+    return {
+      message: 'If an account with that email exists, password reset instructions have been sent.',
+    };
+  }
+
+  // Generate 1-hour expiring reset token
+  const rawToken = generateRandomToken();
+  const tokenHash = hashToken(rawToken);
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+  await invitesQueries.createInvite(pool, {
+    accountId: account.id,
+    tokenHash,
+    expiresAt,
+  });
+
+  // Log in development console for testing
+  console.log(`🔑 [Password Reset Token for ${email}]: ${rawToken}`);
+
+  return {
+    message: 'If an account with that email exists, password reset instructions have been sent.',
+    resetToken: rawToken, // Convenient for local testing
+  };
+}
+
+export async function resetPassword({ token, newPassword }) {
+  return withTransaction(async (client) => {
+    const tokenHash = hashToken(token);
+    const invite = await invitesQueries.findInviteByTokenHash(client, tokenHash);
+
+    if (!invite) {
+      throw new NotFoundError('Reset token not found or invalid');
+    }
+
+    if (invite.claimed_at) {
+      throw new ConflictError('This reset token has already been used', 'ALREADY_HANDLED');
+    }
+
+    if (new Date(invite.expires_at) < new Date()) {
+      throw new UnauthorizedError('This reset token has expired', 'TOKEN_EXPIRED');
+    }
+
+    // Hash and update password
+    const newHash = await hashPassword(newPassword);
+    await accountsQueries.updatePassword(client, invite.account_id, newHash);
+
+    // Mark claimed
+    await invitesQueries.markInviteClaimed(client, invite.id);
+
+    return { message: 'Password reset successfully. You can now log in with your new password.' };
+  });
 }
