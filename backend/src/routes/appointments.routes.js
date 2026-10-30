@@ -54,5 +54,20 @@ router.post(
   appointmentsController.reschedule
 );
 
+// Mark as no-show (Doctor or Receptionist)
+router.post(
+  '/:id/no-show',
+  authorize('doctor', 'receptionist'),
+  appointmentsController.markNoShow
+);
+
+// Revert no-show back to booked
+router.post(
+  '/:id/revert-no-show',
+  authorize('doctor', 'receptionist'),
+  appointmentsController.revertNoShow
+);
+
 export default router;
+
 

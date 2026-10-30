@@ -169,3 +169,48 @@ export async function rescheduleAppointment(currentUser, appointmentId, { startT
     });
   });
 }
+
+export async function markNoShow(currentUser, appointmentId) {
+  return withTransaction(async (client) => {
+    const appointment = await appointmentsQueries.findAppointmentById(client, appointmentId);
+    if (!appointment) {
+      throw new NotFoundError('Appointment not found');
+    }
+
+    if (currentUser.role === 'doctor' && appointment.doctor_id !== currentUser.id) {
+      throw new ForbiddenError('Not your assigned appointment');
+    }
+
+    // Per PRD: No-show can only be marked after the appointment start time has passed
+    if (new Date() < new Date(appointment.start_time)) {
+      throw new ConflictError('Cannot mark appointment as no-show before its start time has arrived');
+    }
+
+    assertValidTransition(appointment.status, APPOINTMENT_STATUS.NO_SHOW);
+
+    return appointmentsQueries.updateAppointmentStatus(client, {
+      id: appointmentId,
+      status: APPOINTMENT_STATUS.NO_SHOW,
+    });
+  });
+}
+
+export async function revertNoShow(currentUser, appointmentId) {
+  return withTransaction(async (client) => {
+    const appointment = await appointmentsQueries.findAppointmentById(client, appointmentId);
+    if (!appointment) {
+      throw new NotFoundError('Appointment not found');
+    }
+
+    if (currentUser.role === 'doctor' && appointment.doctor_id !== currentUser.id) {
+      throw new ForbiddenError('Not your assigned appointment');
+    }
+
+    assertValidTransition(appointment.status, APPOINTMENT_STATUS.BOOKED);
+
+    return appointmentsQueries.updateAppointmentStatus(client, {
+      id: appointmentId,
+      status: APPOINTMENT_STATUS.BOOKED,
+    });
+  });
+}

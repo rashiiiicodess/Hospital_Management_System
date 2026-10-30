@@ -7,11 +7,13 @@ import { env } from './config/env.js';
 import apiRouter from './routes/index.js';
 import { notFound } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { generalLimiter } from './middleware/rateLimit.js';
 
 const app = express();
 
 // Security and utility middlewares
 app.use(helmet());
+app.use(generalLimiter);
 app.use(
   cors({
     origin: env.CLIENT_ORIGIN,

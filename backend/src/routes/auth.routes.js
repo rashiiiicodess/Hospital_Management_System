@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as authController from '../controllers/auth.controller.js';
 import { validate } from '../middleware/validate.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { strictAuthLimiter } from '../middleware/rateLimit.js';
 import {
   registerSchema,
   loginSchema,
@@ -13,12 +14,12 @@ import {
 
 const router = Router();
 
-// 1. Public Auth
+// 1. Public Auth (with strict rate limiting on brute-force sensitive endpoints)
 router.post('/register', validate(registerSchema), authController.register);
-router.post('/login', validate(loginSchema), authController.login);
+router.post('/login', strictAuthLimiter, validate(loginSchema), authController.login);
 router.post('/invites/:token/accept', validate(acceptInviteSchema), authController.acceptInvite);
-router.post('/forgot-password', validate(forgotPasswordSchema), authController.forgotPassword);
-router.post('/reset-password', validate(resetPasswordSchema), authController.resetPassword);
+router.post('/forgot-password', strictAuthLimiter, validate(forgotPasswordSchema), authController.forgotPassword);
+router.post('/reset-password', strictAuthLimiter, validate(resetPasswordSchema), authController.resetPassword);
 
 // 2. Authenticated Endpoints
 router.get('/me', authenticate, authController.getMe);

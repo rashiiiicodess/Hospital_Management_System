@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import * as doctorsController from '../controllers/doctors.controller.js';
 import * as availabilityController from '../controllers/availability.controller.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { authorize } from '../middleware/authorize.js';
@@ -8,10 +9,24 @@ import {
   addOverrideSchema,
   getSlotsSchema,
 } from '../validation/availability.schemas.js';
+import {
+  updateDoctorSelfSchema,
+  updateDoctorAdminSchema,
+} from '../validation/doctors.schemas.js';
 
 const router = Router();
 
-// 1. Doctor sets their own weekly schedule
+// 1. Search/List doctors (Public or Logged in users)
+router.get('/', doctorsController.list);
+
+// 2. Doctor availability & profile endpoints (Registered BEFORE parameterized /:id)
+router.get(
+  '/me/availability',
+  authenticate,
+  authorize('doctor'),
+  availabilityController.getMyAvailability
+);
+
 router.put(
   '/me/availability/weekly',
   authenticate,
@@ -20,7 +35,6 @@ router.put(
   availabilityController.setWeeklySchedule
 );
 
-// 2. Doctor adds a date override (leave or custom hours)
 router.post(
   '/me/overrides',
   authenticate,
@@ -29,14 +43,27 @@ router.post(
   availabilityController.addDateOverride
 );
 
-// 3. Anyone logged in (Patients, Receptionists, Doctors) can view open slots for a doctor on a date
-router.get('/:id/slots', authenticate, validate(getSlotsSchema), availabilityController.getOpenSlots);
-
-// Doctor checks their own configured weekly template
-router.get(
-  '/me/availability',
+router.patch(
+  '/me',
   authenticate,
   authorize('doctor'),
-  availabilityController.getMyAvailability
+  validate(updateDoctorSelfSchema),
+  doctorsController.updateMe
 );
+
+// 3. Open slots for a doctor on a date
+router.get('/:id/slots', authenticate, validate(getSlotsSchema), availabilityController.getOpenSlots);
+
+// 4. Public doctor profile by ID
+router.get('/:id', doctorsController.getById);
+
+// 5. Admin updates doctor department/specialization
+router.patch(
+  '/:id',
+  authenticate,
+  authorize('admin'),
+  validate(updateDoctorAdminSchema),
+  doctorsController.updateByAdmin
+);
+
 export default router;

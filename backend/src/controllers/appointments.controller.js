@@ -60,3 +60,21 @@ export async function reschedule(req, res, next) {
     next(err);
   }
 }
+
+export async function markNoShow(req, res, next) {
+  try {
+    const updated = await appointmentsService.markNoShow(req.user, req.params.id);
+    res.status(200).json({ message: 'Appointment marked as no-show', appointment: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function revertNoShow(req, res, next) {
+  try {
+    const updated = await appointmentsService.revertNoShow(req.user, req.params.id);
+    res.status(200).json({ message: 'No-show reverted back to booked', appointment: updated });
+  } catch (err) {
+    next(err);
+  }
+}
